@@ -1,8 +1,13 @@
 # ESP-IDF
 build/
-sdkconfig
-sdkconfig.old
+**/sdkconfig
+**/sdkconfig.old
+!**/sdkconfig.defaults*
 managed_components/
+.cache/
+
+# Runtime artifacts
+runtime_logs.txt
 
 # macOS
 .DS_Store
