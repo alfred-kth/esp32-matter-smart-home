@@ -1,4 +1,4 @@
-CONFIG_IDF_TARGET="esp32c5"
+CONFIG_IDF_TARGET="esp32c6"
 
 # libsodium
 CONFIG_LIBSODIUM_USE_MBEDTLS_SHA=y
@@ -21,12 +21,9 @@ CONFIG_OPENTHREAD_CLI=n
 # Disable lwip ipv6 autoconfig
 CONFIG_LWIP_IPV6_AUTOCONFIG=n
 
-# Use a custom partition table (larger app slots than partitions.csv for Wi-Fi + Thread build)
+# Use a custom partition table (larger app slots than config/partitions.csv for Wi-Fi + Thread build)
 CONFIG_PARTITION_TABLE_CUSTOM=y
-CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_wifi_thread.csv"
-
-# This example use 3 dynamic endpoints: RootNode, light, and secondary network commissioning
-CONFIG_ESP_MATTER_MAX_DYNAMIC_ENDPOINT_COUNT=3
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="config/partitions_wifi_thread.csv"
 
 # LwIP config for OpenThread
 CONFIG_LWIP_IPV6_NUM_ADDRESSES=8
@@ -50,16 +47,19 @@ CONFIG_BUTTON_LONG_PRESS_TIME_MS=5000
 # Enable chip shell
 CONFIG_ENABLE_CHIP_SHELL=y
 
-# ESP32-C5-DevKitC-1 Settings
+# This example use 3 dynamic endpoints: RootNode, light, and secondary network commissioning
+CONFIG_ESP_MATTER_MAX_DYNAMIC_ENDPOINT_COUNT=3
+
+# ESP32-C6-DevKitM-1 Settings
 # Buttons
 CONFIG_BSP_BUTTONS_NUM=1
 CONFIG_BSP_BUTTON_1_TYPE_GPIO=y
-CONFIG_BSP_BUTTON_1_GPIO=28
+CONFIG_BSP_BUTTON_1_GPIO=9
 CONFIG_BSP_BUTTON_1_LEVEL=0
 # LEDs
 CONFIG_BSP_LEDS_NUM=1
 CONFIG_BSP_LED_TYPE_RGB=y
-CONFIG_BSP_LED_RGB_GPIO=27
+CONFIG_BSP_LED_RGB_GPIO=8
 CONFIG_BSP_LED_RGB_BACKEND_RMT=y
 
 # Firmware size optimization
