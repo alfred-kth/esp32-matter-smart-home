@@ -1,0 +1,24 @@
+# ESP-IDF
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ESP-Matter / ZAP Tool
+*.zap-backup
+out/
+
+# Python (if you write any helper scripts)
+__pycache__/
+*.pyc
