@@ -17,6 +17,10 @@
 #include <device.h>
 #include <led_driver.h>
 #include <button_gpio.h>
+#include <driver/gpio.h>
+#include <driver/uart.h>
+
+#define LED_GPIO_PIN GPIO_NUM_19 // D8 på XIAO ESP32C6
 
 using namespace chip::app::Clusters;
 using namespace esp_matter;
@@ -24,43 +28,92 @@ using namespace esp_matter;
 static const char *TAG = "app_driver";
 extern uint16_t light_endpoint_id;
 
-// Global variables to store current XY color coordinates
-static uint16_t current_x = 0;
-static uint16_t current_y = 0;
+/* ────────────────────────────────────────────────────────
+ *  UART helper functions for Raspberry Pi communication
+ * ──────────────────────────────────────────────────────── */
 
-/* Do any conversions/remapping for the actual value here */
+esp_err_t app_driver_uart_init()
+{
+    const uart_config_t uart_config = {
+        .baud_rate  = UART_BAUD_RATE,
+        .data_bits  = UART_DATA_8_BITS,
+        .parity     = UART_PARITY_DISABLE,
+        .stop_bits  = UART_STOP_BITS_1,
+        .flow_ctrl  = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_DEFAULT,
+    };
+
+    esp_err_t err;
+
+    // Install UART driver with a TX buffer and no RX buffer (we only TX here)
+    err = uart_driver_install(UART_PORT_NUM, UART_BUF_SIZE * 2, 0, 0, NULL, 0);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "UART driver install failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    err = uart_param_config(UART_PORT_NUM, &uart_config);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "UART param config failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    err = uart_set_pin(UART_PORT_NUM, UART_TX_PIN, UART_RX_PIN,
+                       UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "UART set pin failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    ESP_LOGI(TAG, "UART%d initialised – TX:GPIO%d  RX:GPIO%d  @ %d baud",
+             UART_PORT_NUM, UART_TX_PIN, UART_RX_PIN, UART_BAUD_RATE);
+    return ESP_OK;
+}
+
+esp_err_t send_play_command_via_uart()
+{
+    const char *cmd = "CMD:PLAY\n";
+    int len = strlen(cmd);
+    int written = uart_write_bytes(UART_PORT_NUM, cmd, len);
+
+    if (written < 0) {
+        ESP_LOGE(TAG, "UART write failed");
+        return ESP_FAIL;
+    }
+    ESP_LOGI(TAG, ">>> Sent CMD:PLAY over UART (%d bytes)", written);
+    return ESP_OK;
+}
+
+esp_err_t send_stop_command_via_uart()
+{
+    const char *cmd = "CMD:STOP\n";
+    int len = strlen(cmd);
+    int written = uart_write_bytes(UART_PORT_NUM, cmd, len);
+
+    if (written < 0) {
+        ESP_LOGE(TAG, "UART write failed");
+        return ESP_FAIL;
+    }
+    ESP_LOGI(TAG, ">>> Sent CMD:STOP over UART (%d bytes)", written);
+    return ESP_OK;
+}
+
+/* ────────────────────────────────────────────────────────
+ *  LED + Matter attribute handlers (unchanged logic)
+ * ──────────────────────────────────────────────────────── */
+
 static esp_err_t app_driver_light_set_power(led_driver_handle_t handle, esp_matter_attr_val_t *val)
 {
-    return led_driver_set_power(handle, val->val.b);
-}
+    gpio_set_level(LED_GPIO_PIN, val->val.b);
 
-static esp_err_t app_driver_light_set_brightness(led_driver_handle_t handle, esp_matter_attr_val_t *val)
-{
-    int value = REMAP_TO_RANGE(val->val.u8, MATTER_BRIGHTNESS, STANDARD_BRIGHTNESS);
-    return led_driver_set_brightness(handle, value);
-}
+    /* ── Trigger UART command based on On/Off state ── */
+    if (val->val.b) {
+        send_play_command_via_uart();
+    } else {
+        send_stop_command_via_uart();
+    }
 
-static esp_err_t app_driver_light_set_hue(led_driver_handle_t handle, esp_matter_attr_val_t *val)
-{
-    int value = REMAP_TO_RANGE(val->val.u8, MATTER_HUE, STANDARD_HUE);
-    return led_driver_set_hue(handle, value);
-}
-
-static esp_err_t app_driver_light_set_saturation(led_driver_handle_t handle, esp_matter_attr_val_t *val)
-{
-    int value = REMAP_TO_RANGE(val->val.u8, MATTER_SATURATION, STANDARD_SATURATION);
-    return led_driver_set_saturation(handle, value);
-}
-
-static esp_err_t app_driver_light_set_temperature(led_driver_handle_t handle, esp_matter_attr_val_t *val)
-{
-    uint32_t value = REMAP_TO_RANGE_INVERSE(val->val.u16, STANDARD_TEMPERATURE_FACTOR);
-    return led_driver_set_temperature(handle, value);
-}
-
-static esp_err_t app_driver_light_set_xy(led_driver_handle_t handle, uint16_t x, uint16_t y)
-{
-    return led_driver_set_xy(handle, x, y);
+    return ESP_OK;
 }
 
 static void app_driver_button_toggle_cb(void *arg, void *data)
@@ -88,24 +141,6 @@ esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_
             if (attribute_id == OnOff::Attributes::OnOff::Id) {
                 err = app_driver_light_set_power(handle, val);
             }
-        } else if (cluster_id == LevelControl::Id) {
-            if (attribute_id == LevelControl::Attributes::CurrentLevel::Id) {
-                err = app_driver_light_set_brightness(handle, val);
-            }
-        } else if (cluster_id == ColorControl::Id) {
-            if (attribute_id == ColorControl::Attributes::CurrentHue::Id) {
-                err = app_driver_light_set_hue(handle, val);
-            } else if (attribute_id == ColorControl::Attributes::CurrentSaturation::Id) {
-                err = app_driver_light_set_saturation(handle, val);
-            } else if (attribute_id == ColorControl::Attributes::ColorTemperatureMireds::Id) {
-                err = app_driver_light_set_temperature(handle, val);
-            } else if (attribute_id == ColorControl::Attributes::CurrentX::Id) {
-                current_x = val->val.u16;
-                err = app_driver_light_set_xy(handle, current_x, current_y);
-            } else if (attribute_id == ColorControl::Attributes::CurrentY::Id) {
-                current_y = val->val.u16;
-                err = app_driver_light_set_xy(handle, current_x, current_y);
-            }
         }
     }
     return err;
@@ -118,43 +153,8 @@ esp_err_t app_driver_light_set_defaults(uint16_t endpoint_id)
     led_driver_handle_t handle = (led_driver_handle_t)priv_data;
     esp_matter_attr_val_t val = esp_matter_invalid(NULL);
 
-    /* Setting brightness */
-    attribute_t *attribute = attribute::get(endpoint_id, LevelControl::Id, LevelControl::Attributes::CurrentLevel::Id);
-    attribute::get_val(attribute, &val);
-    err |= app_driver_light_set_brightness(handle, &val);
-
-    /* Setting color */
-    attribute = attribute::get(endpoint_id, ColorControl::Id, ColorControl::Attributes::ColorMode::Id);
-    attribute::get_val(attribute, &val);
-    if (val.val.u8 == (uint8_t)ColorControl::ColorMode::kCurrentHueAndCurrentSaturation) {
-        /* Setting hue */
-        attribute = attribute::get(endpoint_id, ColorControl::Id, ColorControl::Attributes::CurrentHue::Id);
-        attribute::get_val(attribute, &val);
-        err |= app_driver_light_set_hue(handle, &val);
-        /* Setting saturation */
-        attribute = attribute::get(endpoint_id, ColorControl::Id, ColorControl::Attributes::CurrentSaturation::Id);
-        attribute::get_val(attribute, &val);
-        err |= app_driver_light_set_saturation(handle, &val);
-    } else if (val.val.u8 == (uint8_t)ColorControl::ColorMode::kColorTemperature) {
-        /* Setting temperature */
-        attribute = attribute::get(endpoint_id, ColorControl::Id, ColorControl::Attributes::ColorTemperatureMireds::Id);
-        attribute::get_val(attribute, &val);
-        err |= app_driver_light_set_temperature(handle, &val);
-    } else if (val.val.u8 == (uint8_t)ColorControl::ColorMode::kCurrentXAndCurrentY) {
-        /* Setting XY coordinates */
-        attribute = attribute::get(endpoint_id, ColorControl::Id, ColorControl::Attributes::CurrentX::Id);
-        attribute::get_val(attribute, &val);
-        current_x = val.val.u16;
-        attribute = attribute::get(endpoint_id, ColorControl::Id, ColorControl::Attributes::CurrentY::Id);
-        attribute::get_val(attribute, &val);
-        current_y = val.val.u16;
-        err |= app_driver_light_set_xy(handle, current_x, current_y);
-    } else {
-        ESP_LOGE(TAG, "Color mode not supported");
-    }
-
     /* Setting power */
-    attribute = attribute::get(endpoint_id, OnOff::Id, OnOff::Attributes::OnOff::Id);
+    attribute_t *attribute = attribute::get(endpoint_id, OnOff::Id, OnOff::Attributes::OnOff::Id);
     attribute::get_val(attribute, &val);
     err |= app_driver_light_set_power(handle, &val);
 
@@ -163,10 +163,18 @@ esp_err_t app_driver_light_set_defaults(uint16_t endpoint_id)
 
 app_driver_handle_t app_driver_light_init()
 {
-    /* Initialize led */
-    led_driver_config_t config = led_driver_get_config();
-    led_driver_handle_t handle = led_driver_init(&config);
-    return (app_driver_handle_t)handle;
+    /* Initialize led using raw GPIO */
+    gpio_reset_pin(LED_GPIO_PIN);
+    gpio_set_direction(LED_GPIO_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(LED_GPIO_PIN, 0);
+
+    /* Initialize UART for Raspberry Pi communication */
+    esp_err_t uart_err = app_driver_uart_init();
+    if (uart_err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize UART – Pi commands will not work");
+    }
+
+    return (app_driver_handle_t)1; // Dummy handle
 }
 
 app_driver_handle_t app_driver_button_init()

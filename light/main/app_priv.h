@@ -33,6 +33,13 @@
 #define DEFAULT_HUE 128
 #define DEFAULT_SATURATION 254
 
+/* ── UART configuration for Raspberry Pi communication ── */
+#define UART_PORT_NUM      UART_NUM_1
+#define UART_BAUD_RATE     115200
+#define UART_TX_PIN        GPIO_NUM_5   // Connect to Pi RX
+#define UART_RX_PIN        GPIO_NUM_4   // Connect to Pi TX
+#define UART_BUF_SIZE      256
+
 typedef void *app_driver_handle_t;
 
 /** Initialize the light driver
@@ -52,6 +59,29 @@ app_driver_handle_t app_driver_light_init();
  * @return NULL in case of failure.
  */
 app_driver_handle_t app_driver_button_init();
+
+/** Initialize the UART interface for Pi communication
+ *
+ * Configures UART1 at 115200 8N1 on the defined TX/RX pins.
+ *
+ * @return ESP_OK on success.
+ * @return error in case of failure.
+ */
+esp_err_t app_driver_uart_init();
+
+/** Send "CMD:PLAY\n" over UART to the Raspberry Pi
+ *
+ * @return ESP_OK on success.
+ * @return error in case of failure.
+ */
+esp_err_t send_play_command_via_uart();
+
+/** Send "CMD:STOP\n" over UART to the Raspberry Pi
+ *
+ * @return ESP_OK on success.
+ * @return error in case of failure.
+ */
+esp_err_t send_stop_command_via_uart();
 
 /** Driver Update
  *
