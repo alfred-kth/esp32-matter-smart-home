@@ -6,8 +6,9 @@ Listens on the serial port for commands from the ESP32-C6 and controls
 Spotify playback via the Spotify Web API (spotipy).
 
 Commands recognised (terminated by newline):
-  CMD:PLAY   → Transfer playback to the local librespot device
-  CMD:STOP   → Pause playback on the current device
+  CMD:PLAY     → Transfer playback to the local librespot device
+  CMD:STOP     → Pause playback on the current device
+  CMD:VOL:xx   → Set volume to xx% (0–100) on the current device
 
 Required environment variables (set in .env or export them):
   SPOTIPY_CLIENT_ID       — Spotify application Client ID
@@ -156,8 +157,20 @@ def create_spotify_client() -> spotipy.Spotify:
     token_info = auth_manager.cache_handler.get_cached_token()
     if token_info and not auth_manager.is_token_expired(token_info):
         log.info("Using cached Spotify token")
+    elif token_info and token_info.get("refresh_token"):
+        # Token is expired but we have a refresh_token – try to refresh it
+        log.info("Cached token expired – refreshing via refresh_token…")
+        try:
+            token_info = auth_manager.refresh_access_token(token_info["refresh_token"])
+            log.info("Token refreshed successfully")
+        except Exception as exc:
+            log.error("Token refresh failed: %s – falling back to full OAuth", exc)
+            token_info = None
     else:
-        # Print the auth URL for the user to open
+        token_info = None
+
+    # If we still don't have a valid token, do the full OAuth flow
+    if token_info is None:
         auth_url = auth_manager.get_authorize_url()
         log.info("\n" + "=" * 60)
         log.info("Open this URL in a browser to authenticate with Spotify:")
@@ -250,6 +263,27 @@ def pause_playback(sp: spotipy.Spotify) -> bool:
     return False
 
 
+def set_volume(sp: spotipy.Spotify, volume_percent: int) -> bool:
+    """Set Spotify playback volume (0–100) on the currently active device."""
+    volume_percent = max(0, min(100, volume_percent))
+    try:
+        sp.volume(volume_percent)
+        log.info("🔊  Volume set to %d%%", volume_percent)
+        return True
+    except spotipy.exceptions.SpotifyException as exc:
+        if exc.http_status == 401:
+            log.warning("Token expired – forcing refresh…")
+            sp.auth_manager.get_access_token(as_dict=False, check_cache=False)
+            return set_volume(sp, volume_percent)
+        if exc.http_status == 403:
+            log.warning("Volume change not allowed (no active device?)")
+            return False
+        log.error("Spotify API error during volume change: %s", exc)
+    except Exception as exc:
+        log.error("Unexpected error during volume change: %s", exc)
+    return False
+
+
 # ── Serial loop ──────────────────────────────────────────
 
 def main():
@@ -297,7 +331,16 @@ def main():
 
                 # Look for commands anywhere in the line (ESP32 log
                 # lines wrap the raw command in debug output).
-                if "CMD:PLAY" in cmd:
+                if "CMD:VOL:" in cmd:
+                    # Extract volume percentage from CMD:VOL:xx
+                    try:
+                        vol_str = cmd.split("CMD:VOL:")[1].split()[0]
+                        vol = int(vol_str)
+                        log.info("<<< Matched CMD:VOL:%d", vol)
+                        set_volume(sp, vol)
+                    except (IndexError, ValueError) as exc:
+                        log.warning("Malformed volume command '%s': %s", cmd, exc)
+                elif "CMD:PLAY" in cmd:
                     log.info("<<< Matched CMD:PLAY")
                     transfer_playback(sp, DEVICE_NAME)
                 elif "CMD:STOP" in cmd:

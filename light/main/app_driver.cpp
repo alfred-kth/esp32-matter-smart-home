@@ -98,8 +98,27 @@ esp_err_t send_stop_command_via_uart()
     return ESP_OK;
 }
 
+esp_err_t send_volume_command_via_uart(uint8_t matter_level)
+{
+    /* Map Matter LevelControl range (0–254) → Spotify volume (0–100) */
+    uint8_t spotify_vol = (uint16_t)matter_level * 100 / 254;
+    if (spotify_vol > 100) spotify_vol = 100;
+
+    char cmd[20];
+    int len = snprintf(cmd, sizeof(cmd), "CMD:VOL:%u\n", spotify_vol);
+    int written = uart_write_bytes(UART_PORT_NUM, cmd, len);
+
+    if (written < 0) {
+        ESP_LOGE(TAG, "UART write failed (volume)");
+        return ESP_FAIL;
+    }
+    ESP_LOGI(TAG, ">>> Sent CMD:VOL:%u over UART (matter level %u → %u%%)",
+             spotify_vol, matter_level, spotify_vol);
+    return ESP_OK;
+}
+
 /* ────────────────────────────────────────────────────────
- *  LED + Matter attribute handlers (unchanged logic)
+ *  LED + Matter attribute handlers
  * ──────────────────────────────────────────────────────── */
 
 static esp_err_t app_driver_light_set_power(led_driver_handle_t handle, esp_matter_attr_val_t *val)
@@ -113,6 +132,14 @@ static esp_err_t app_driver_light_set_power(led_driver_handle_t handle, esp_matt
         send_stop_command_via_uart();
     }
 
+    return ESP_OK;
+}
+
+static esp_err_t app_driver_light_set_level(led_driver_handle_t handle, esp_matter_attr_val_t *val)
+{
+    uint8_t level = val->val.u8;
+    ESP_LOGI(TAG, "Level changed to %u", level);
+    send_volume_command_via_uart(level);
     return ESP_OK;
 }
 
@@ -141,6 +168,10 @@ esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_
             if (attribute_id == OnOff::Attributes::OnOff::Id) {
                 err = app_driver_light_set_power(handle, val);
             }
+        } else if (cluster_id == LevelControl::Id) {
+            if (attribute_id == LevelControl::Attributes::CurrentLevel::Id) {
+                err = app_driver_light_set_level(handle, val);
+            }
         }
     }
     return err;
@@ -157,6 +188,11 @@ esp_err_t app_driver_light_set_defaults(uint16_t endpoint_id)
     attribute_t *attribute = attribute::get(endpoint_id, OnOff::Id, OnOff::Attributes::OnOff::Id);
     attribute::get_val(attribute, &val);
     err |= app_driver_light_set_power(handle, &val);
+
+    /* Setting volume (level) */
+    attribute = attribute::get(endpoint_id, LevelControl::Id, LevelControl::Attributes::CurrentLevel::Id);
+    attribute::get_val(attribute, &val);
+    err |= app_driver_light_set_level(handle, &val);
 
     return err;
 }

@@ -34,11 +34,11 @@
 #define DEFAULT_SATURATION 254
 
 /* ── UART configuration for Raspberry Pi communication ── */
-#define UART_PORT_NUM      UART_NUM_1
-#define UART_BAUD_RATE     115200
-#define UART_TX_PIN        GPIO_NUM_5   // Connect to Pi RX
-#define UART_RX_PIN        GPIO_NUM_4   // Connect to Pi TX
-#define UART_BUF_SIZE      256
+#define UART_PORT_NUM UART_NUM_1
+#define UART_BAUD_RATE 115200
+#define UART_TX_PIN GPIO_NUM_16 // Connect to Pi RX
+#define UART_RX_PIN GPIO_NUM_17 // Connect to Pi TX
+#define UART_BUF_SIZE 256
 
 typedef void *app_driver_handle_t;
 
@@ -85,23 +85,27 @@ esp_err_t send_stop_command_via_uart();
 
 /** Driver Update
  *
- * This API should be called to update the driver for the attribute being updated.
- * This is usually called from the common `app_attribute_update_cb()`.
+ * This API should be called to update the driver for the attribute being
+ * updated. This is usually called from the common `app_attribute_update_cb()`.
  *
  * @param[in] endpoint_id Endpoint ID of the attribute.
  * @param[in] cluster_id Cluster ID of the attribute.
  * @param[in] attribute_id Attribute ID of the attribute.
- * @param[in] val Pointer to `esp_matter_attr_val_t`. Use appropriate elements as per the value type.
+ * @param[in] val Pointer to `esp_matter_attr_val_t`. Use appropriate elements
+ * as per the value type.
  *
  * @return ESP_OK on success.
  * @return error in case of failure.
  */
-esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_t endpoint_id, uint32_t cluster_id,
-                                      uint32_t attribute_id, esp_matter_attr_val_t *val);
+esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle,
+                                      uint16_t endpoint_id, uint32_t cluster_id,
+                                      uint32_t attribute_id,
+                                      esp_matter_attr_val_t *val);
 
 /** Set defaults for light driver
  *
- * Set the attribute drivers to their default values from the created data model.
+ * Set the attribute drivers to their default values from the created data
+ * model.
  *
  * @param[in] endpoint_id Endpoint ID of the driver.
  *
@@ -111,18 +115,20 @@ esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_
 esp_err_t app_driver_light_set_defaults(uint16_t endpoint_id);
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
-#define ESP_OPENTHREAD_DEFAULT_RADIO_CONFIG()                                           \
-    {                                                                                   \
-        .radio_mode = RADIO_MODE_NATIVE,                                                \
-    }
+#define ESP_OPENTHREAD_DEFAULT_RADIO_CONFIG()                                  \
+  {                                                                            \
+      .radio_mode = RADIO_MODE_NATIVE,                                         \
+  }
 
-#define ESP_OPENTHREAD_DEFAULT_HOST_CONFIG()                                            \
-    {                                                                                   \
-        .host_connection_mode = HOST_CONNECTION_MODE_NONE,                              \
-    }
+#define ESP_OPENTHREAD_DEFAULT_HOST_CONFIG()                                   \
+  {                                                                            \
+      .host_connection_mode = HOST_CONNECTION_MODE_NONE,                       \
+  }
 
-#define ESP_OPENTHREAD_DEFAULT_PORT_CONFIG()                                            \
-    {                                                                                   \
-        .storage_partition_name = "nvs", .netif_queue_size = 10, .task_queue_size = 10, \
-    }
+#define ESP_OPENTHREAD_DEFAULT_PORT_CONFIG()                                   \
+  {                                                                            \
+      .storage_partition_name = "nvs",                                         \
+      .netif_queue_size = 10,                                                  \
+      .task_queue_size = 10,                                                   \
+  }
 #endif

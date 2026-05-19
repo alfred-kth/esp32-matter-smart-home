@@ -43,6 +43,7 @@ uint16_t light_endpoint_id = 0;
 using namespace esp_matter;
 using namespace esp_matter::attribute;
 using namespace esp_matter::endpoint;
+using namespace esp_matter::cluster;
 using namespace chip::app::Clusters;
 
 constexpr auto k_timeout_seconds = 300;
@@ -185,16 +186,17 @@ extern "C" void app_main()
 
     MEMORY_PROFILER_DUMP_HEAP_STAT("node created");
 
-    on_off_light::config_t light_config;
+    dimmable_light::config_t light_config;
     light_config.on_off.on_off = DEFAULT_POWER;
     light_config.on_off_lighting.start_up_on_off = nullptr;
+    light_config.level_control.current_level = nullable<uint8_t>(DEFAULT_BRIGHTNESS);
 
     // endpoint handles can be used to add/modify clusters.
-    endpoint_t *endpoint = on_off_light::create(node, &light_config, ENDPOINT_FLAG_NONE, light_handle);
-    ABORT_APP_ON_FAILURE(endpoint != nullptr, ESP_LOGE(TAG, "Failed to create on/off light endpoint"));
+    endpoint_t *endpoint = dimmable_light::create(node, &light_config, ENDPOINT_FLAG_NONE, light_handle);
+    ABORT_APP_ON_FAILURE(endpoint != nullptr, ESP_LOGE(TAG, "Failed to create dimmable light endpoint"));
 
     light_endpoint_id = endpoint::get_id(endpoint);
-    ESP_LOGI(TAG, "Light created with endpoint_id %d", light_endpoint_id);
+    ESP_LOGI(TAG, "Dimmable light (volume) created with endpoint_id %d", light_endpoint_id);
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD && CHIP_DEVICE_CONFIG_ENABLE_WIFI_STATION
     // Enable secondary network interface
