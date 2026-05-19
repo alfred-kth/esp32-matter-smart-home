@@ -1,4 +1,4 @@
-# Implementationsplan: ESP32-C6 Matter över Wi-Fi
+# Implementationsplan: ESP32-C6 (Seeed Studio XIAO ESP32C6) Matter över Wi-Fi
 
 ## Översikt
 Projektets mål är att utveckla en smart home-enhet (t.ex. en smart lampa eller ett smart uttag) med hjälp av Matter-protokollet över Wi-Fi, körandes på en ESP32-C6 mikrokontroller. Systemet kommer att baseras på Espressifs ESP-IDF och esp-matter SDK.

@@ -1,0 +1,16 @@
+[Unit]
+Description=Spotify UART Daemon – ESP32 to Spotify bridge
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=alfand
+WorkingDirectory=/home/alfand/rpi
+EnvironmentFile=/home/alfand/rpi/.env
+ExecStart=/home/alfand/rpi/venv/bin/python3 /home/alfand/rpi/spotify_uart_daemon.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
